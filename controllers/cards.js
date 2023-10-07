@@ -38,47 +38,34 @@ module.exports.getCards = (req, res, next) => {
 };
 
 module.exports.deleteCard = (req, res, next) => {
-  Card.findByIdAndRemove(req.params.cardId)
+  Card.findById(req.params.cardId)
     .orFail()
-    .then((card) => { res.send(card); })
+    .then((card) => {
+      if (!card.owner.equals(req.user._id)) {
+        throw new ForbiddenError('Карточка другого пользователя');
+      }
+      Card.deleteOne(card)
+        .orFail()
+        .then(() => {
+          res.status(httpConstants.HTTP_STATUS_OK).send({ message: 'Карточка удалена' });
+        })
+        .catch((err) => {
+          if (err instanceof mongoose.Error.DocumentNotFoundError) {
+            next(new NotFoundError(`Карточка с указанным _id: ${req.params.cardId} не найдена`));
+          } else {
+            next(err);
+          }
+        });
+    })
     .catch((err) => {
-      if (err instanceof mongoose.Error.CastError) {
-        next(new BadRequestError(`Некорректный _id: ${req.params.cardId} карточки`));
-    } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+      if (err instanceof mongoose.Error.DocumentNotFoundError) {
         next(new NotFoundError(`Карточка с указанным _id: ${req.params.cardId} не найдена`));
-    } else {
-      next(err);
-    }
-  });
-
-  // Card.findById(req.params.cardId)
-  //   .orFail()
-  //   .then((card) => {
-  //     if (!card.owner.equals(req.user._id)) {
-  //       throw new ForbiddenError('Карточка другого пользователя');
-  //     }
-  //     Card.deleteOne(card)
-  //       .orFail()
-  //       .then(() => {
-  //         res.status(httpConstants.HTTP_STATUS_OK).send({ message: 'Карточка удалена' });
-  //       })
-  //       .catch((err) => {
-  //         if (err instanceof mongoose.Error.DocumentNotFoundError) {
-  //           next(new NotFoundError(`Карточка с указанным _id: ${req.params.cardId} не найдена`));
-  //         } else if (err instanceof mongoose.Error.CastError) {
-  //           next(new BadRequestError(`Некорректный _id: ${req.params.cardId} карточки`));
-  //         } else {
-  //           next(err);
-  //         }
-  //       });
-  //   })
-  //   .catch((err) => {
-  //     if (err instanceof mongoose.Error.DocumentNotFoundError) {
-  //       next(new NotFoundError(`Карточка с указанным _id: ${req.params.cardId} не найдена`));
-  //     } else {
-  //       next(err);
-  //     }
-  //   });
+      } else if (err instanceof mongoose.Error.CastError) {
+        next(new BadRequestError(`Некорректный _id: ${req.params.cardId} карточки`));
+      } else {
+        next(err);
+      }
+    });
 };
 
 module.exports.likeCard = (req, res, next) => {
